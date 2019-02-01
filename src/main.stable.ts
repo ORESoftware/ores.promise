@@ -33,33 +33,22 @@ export class Promise {
   microtaskElapsed = false;
   
   constructor(f: PromiseExecutor) {
-  
-    queueMicrotask(this._handleMicroTask.bind(this));
     
     try {
       f(v => {
         
-        // if(this.microtaskElapsed){
-        //   this._handleOnResolved(v);
-        // }
-        // else{
-          queueMicrotask(() => {
-            this._handleOnResolved(v);
-          });
-        // }
+        queueMicrotask(() => {
+          this._handleOnResolved(v);
+        });
         
         return true;
+        
       }, err => {
         
-        // if(this.microtaskElapsed){
-        //   this._handleOnRejected(err);
-        // }
-        // else{
-          queueMicrotask(() => {
-            this._handleOnRejected(err);
-          });
-        // }
-     
+        queueMicrotask(() => {
+          this._handleOnRejected(err);
+        });
+        
         return false;
       });
     }
@@ -71,18 +60,10 @@ export class Promise {
   }
   
   _handleMicroTask() {
- 
-      this.microtaskElapsed = true;
-   
-    // if (this.state === 'resolved') {
-    //   this._resolveThenables();
-    // }
-    // else if (this.state === 'rejected') {
-    //   this._rejectThenables();
-    // }
+    this.microtaskElapsed = true;
   }
   
-  _handleOnResolved(v: any): true {
+  _handleOnResolved(v: any) {
     
     if (this.state === 'resolved') {
       throw 'Promise resolve callback fired twice.';
@@ -95,29 +76,14 @@ export class Promise {
     this.val = v;
     this.state = 'resolved';
     
-    // if (!this.microtaskElapsed) {
-    //   return;
-    // }
-    
     if (this.thens.length < 1) {
       return;
     }
     
     this._resolveThenables();
-    
-    // if (this.microtaskElapsed) {
-    //   this._resolveThenables();
-    // }
-    // else {
-    //   queueMicrotask(() => {
-    //     this._resolveThenables();
-    //   });
-    // }
-    
-    return true;
   }
   
-  _handleOnRejected(err: any): false {
+  _handleOnRejected(err: any) {
     
     if (this.state === 'rejected') {
       throw 'Promise reject callback fired twice.';
@@ -128,30 +94,13 @@ export class Promise {
     }
     
     this.val = err;
-    // this.preState = 'rejected';
-  
     this.state = 'rejected';
-    
-    // if (!this.microtaskElapsed) {
-    //   return;
-    // }
     
     if (this.thens.length < 1) {
       return;
     }
     
     this._rejectThenables();
-    
-    // if (this.microtaskElapsed) {
-    //   this._rejectThenables();
-    // }
-    // else {
-    //   queueMicrotask(() => {
-    //     this._rejectThenables();
-    //   });
-    // }
-    
-    return false;
   }
   
   _resolveThenables() {
