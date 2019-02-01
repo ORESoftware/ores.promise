@@ -33,7 +33,7 @@ export class Promise {
   microtaskElapsed = false;
   
   constructor(f: PromiseExecutor) {
-  
+    
     queueMicrotask(this._handleMicroTask.bind(this));
     
     try {
@@ -43,9 +43,9 @@ export class Promise {
         //   this._handleOnResolved(v);
         // }
         // else{
-          queueMicrotask(() => {
-            this._handleOnResolved(v);
-          });
+        queueMicrotask(() => {
+          this._handleOnResolved(v);
+        });
         // }
         
         return true;
@@ -55,11 +55,11 @@ export class Promise {
         //   this._handleOnRejected(err);
         // }
         // else{
-          queueMicrotask(() => {
-            this._handleOnRejected(err);
-          });
+        queueMicrotask(() => {
+          this._handleOnRejected(err);
+        });
         // }
-     
+        
         return false;
       });
     }
@@ -71,9 +71,9 @@ export class Promise {
   }
   
   _handleMicroTask() {
- 
-      this.microtaskElapsed = true;
-   
+    
+    this.microtaskElapsed = true;
+    
     // if (this.state === 'resolved') {
     //   this._resolveThenables();
     // }
@@ -129,7 +129,7 @@ export class Promise {
     
     this.val = err;
     // this.preState = 'rejected';
-  
+    
     this.state = 'rejected';
     
     // if (!this.microtaskElapsed) {
@@ -156,6 +156,12 @@ export class Promise {
   
   _resolveThenables() {
     for (let v of this.thens) {
+      
+      if(!v.onResolved){
+         v.resolve(this.val);
+         continue;
+      }
+      
       try {
         
         const val = v.onResolved(this.val);
@@ -178,7 +184,14 @@ export class Promise {
   
   _rejectThenables() {
     for (let v of this.thens) {
+      
+      if(!v.onRejected){
+         v.reject(this.val);
+         continue;
+      }
+      
       try {
+        
         const val = v.onRejected(this.val);
         
         if (!Promise.isPromise(val)) {
@@ -243,6 +256,10 @@ export class Promise {
       
       if (this.state === 'resolved') {
         
+        if(!onResolved){
+          return resolve(this.val);
+        }
+        
         try {
           const result = onResolved(this.val);
           if (!Promise.isPromise(result)) {
@@ -259,26 +276,30 @@ export class Promise {
         }
       }
       
-      if (onRejected) {
-        try {
-          
-          const result = onRejected(this.val);
-          
-          if (!Promise.isPromise(result)) {
-            return this._handleValue(result, resolve, reject);
-          }
-          
-          return result.then(
-            this._handleResolveOrReject(resolve, reject)
-          );
-          
-        }
-        catch (err) {
-          return reject(err);
-        }
+      if(this.state !== 'rejected'){
+        throw 'bad state - should be rejected.';
       }
       
-      reject(this.val);
+      if (!onRejected) {
+        return reject(this.val);
+      }
+      
+      try {
+        
+        const result = onRejected(this.val);
+        
+        if (!Promise.isPromise(result)) {
+          return this._handleValue(result, resolve, reject);
+        }
+        
+        return result.then(
+          this._handleResolveOrReject(resolve, reject)
+        );
+        
+      }
+      catch (err) {
+        return reject(err);
+      }
       
     });
   }

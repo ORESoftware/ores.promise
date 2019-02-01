@@ -1,11 +1,11 @@
-
 const {Promise} = require('../dist/main');
 
 const z = Promise.resolve(null).then(v => {
-    throw new Error('fart');
-  });
-  
-  z
+  throw new Error('fart');
+  //  return 'meow';
+});
+
+z
   .then(v => {
     console.log(v);
   })
@@ -21,7 +21,10 @@ const z = Promise.resolve(null).then(v => {
   //   console.error('zoom',4);
   // })
   .catch(e => {
-    console.error('bar', 66);
+    console.error('bar', 66, e.message);
+  })
+  .then(v => {
+    console.log('sam');
   });
 
 z
@@ -46,7 +49,8 @@ z
   })
   .then(v => {
     console.error('success', 77);
+    return Promise.reject('stoop');
   })
   .catch(e => {
-    console.error('bar 2', 77, 'zoom', e.message);
+    console.error('bar 2', 77, e);
   });

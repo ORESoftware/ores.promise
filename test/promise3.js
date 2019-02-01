@@ -6,7 +6,7 @@ const p = new Promise((resolve,reject) => {
   // throw 'barf';
   setTimeout(() => {
     reject('barf');
-  },50);
+  },1);
 });
 
 // .then(v => {

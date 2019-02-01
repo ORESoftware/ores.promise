@@ -25,7 +25,7 @@ setTimeout(() => {
     .catch(e => {
       console.error('bar 1', 666);
       // throw 444;
-      return Promise.cancel(444);
+      // return Promise.cancel(444);
     })
     .then(v => {
       console.error('success 1', 77);
