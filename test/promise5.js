@@ -2,7 +2,7 @@
 const {Promise} = require('../dist/main');
 
 const z = Promise.resolve(null).then(v => {
-    throw 'fart';
+    throw new Error('fart');
   });
   
   z
@@ -41,11 +41,12 @@ z
   // })
   .catch(e => {
     console.error('bar', 77);
-    throw e;
+    // throw e;
+    return Promise.reject(e);
   })
   .then(v => {
     console.error('success', 77);
   })
   .catch(e => {
-    console.error('bar 2', 77);
+    console.error('bar 2', 77, 'zoom', e.message);
   });

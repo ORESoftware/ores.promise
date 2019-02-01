@@ -16,7 +16,6 @@ type RejectExecutorCallback = (v: any) => false;
 type OnResolved = (v: any) => any;
 type OnRejected = (v: any) => any;
 
-
 type PromiseExecutor = (
   resolve: ResolveExecutorCallback,
   reject: RejectExecutorCallback
@@ -27,6 +26,7 @@ type Thenable = { resolve: any, reject: any, onResolved: any, onRejected: any };
 export class Promise {
   
   state = 'pending';
+  preState = 'pending';
   val = <any>null;
   thens: Array<Thenable> = [];
   onRejected: (err: any) => any = null;
@@ -34,15 +34,15 @@ export class Promise {
   
   constructor(f: PromiseExecutor) {
     
-    queueMicrotask(this.handleMicroTask.bind(this));
+    queueMicrotask(this._handleMicroTask.bind(this));
     
     try {
       f(v => {
-         this._handleOnResolved(v);
-         return true;
+        this._handleOnResolved(v);
+        return true;
       }, err => {
-         this._handleOnRejected(err);
-         return false;
+        this._handleOnRejected(err);
+        return false;
       });
     }
     catch (err) {
@@ -51,7 +51,18 @@ export class Promise {
     
   }
   
+  _handleMicroTask() {
+    this.microtaskElapsed = true;
+    if (this.state === 'resolved') {
+      this._resolveThenables();
+    }
+    else if (this.state === 'rejected') {
+      this._rejectThenables();
+    }
+  }
+  
   _handleOnResolved(v: any): true {
+    
     if (this.state === 'resolved') {
       throw 'Promise resolve callback fired twice.';
     }
@@ -60,26 +71,42 @@ export class Promise {
       throw 'Promise resolve callback fired after promise was already rejected.';
     }
     
-    this.state = 'resolved';
     this.val = v;
+    
+    // if (this.preState === 'pending') {
+    //   this.state = 'resolved';
+    // }
+    // else {
+    //   this.preState = 'resolved';
+    //   return;
+    // }
+    
+    this.state = 'resolved';
+    
+    if (!this.microtaskElapsed) {
+      return;
+    }
     
     if (this.thens.length < 1) {
       return;
     }
     
-    if (this.microtaskElapsed) {
-      this._resolveThenables();
-    }
-    else {
-      queueMicrotask(() => {
-        this._resolveThenables();
-      });
-    }
+    this._resolveThenables();
+    
+    // if (this.microtaskElapsed) {
+    //   this._resolveThenables();
+    // }
+    // else {
+    //   queueMicrotask(() => {
+    //     this._resolveThenables();
+    //   });
+    // }
     
     return true;
   }
   
   _handleOnRejected(err: any): false {
+    
     if (this.state === 'rejected') {
       throw 'Promise reject callback fired twice.';
     }
@@ -88,21 +115,36 @@ export class Promise {
       throw 'Promise reject callback fired after promise was already resolved.';
     }
     
-    this.state = 'rejected';
     this.val = err;
+    
+    // if (this.preState === 'pending') {
+    //   this.state = 'rejected';
+    // }
+    // else {
+    //   this.preState = 'rejected';
+    //   return;
+    // }
+    
+    this.state = 'rejected';
+    
+    if (!this.microtaskElapsed) {
+      return;
+    }
     
     if (this.thens.length < 1) {
       return;
     }
     
-    if (this.microtaskElapsed) {
-      this._rejectThenables();
-    }
-    else {
-      queueMicrotask(() => {
-        this._rejectThenables();
-      });
-    }
+    this._rejectThenables();
+    
+    // if (this.microtaskElapsed) {
+    //   this._rejectThenables();
+    // }
+    // else {
+    //   queueMicrotask(() => {
+    //     this._rejectThenables();
+    //   });
+    // }
     
     return false;
   }
@@ -148,10 +190,6 @@ export class Promise {
         v.reject(err);
       }
     }
-  }
-  
-  handleMicroTask() {
-    this.microtaskElapsed = true;
   }
   
   static isPromise(v: any) {

@@ -1,6 +1,6 @@
 
 
-// const {Promise} = require('../dist/main');
+const {Promise} = require('../dist/main');
 
 const p = new Promise((resolve,reject) => {
   // throw 'barf';
