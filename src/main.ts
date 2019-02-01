@@ -33,32 +33,53 @@ export class Promise {
   microtaskElapsed = false;
   
   constructor(f: PromiseExecutor) {
-    
-    queueMicrotask(this._handleMicroTask.bind(this));
+  
     
     try {
       f(v => {
-        this._handleOnResolved(v);
+        
+        // if(this.microtaskElapsed){
+        //   this._handleOnResolved(v);
+        // }
+        // else{
+          queueMicrotask(() => {
+            this._handleOnResolved(v);
+          });
+        // }
+        
         return true;
       }, err => {
-        this._handleOnRejected(err);
+        
+        // if(this.microtaskElapsed){
+        //   this._handleOnRejected(err);
+        // }
+        // else{
+          queueMicrotask(() => {
+            this._handleOnRejected(err);
+          });
+        // }
+     
         return false;
       });
     }
     catch (err) {
       this._handleOnRejected(err);
     }
-    
+  
+    // queueMicrotask(this._handleMicroTask.bind(this));
+  
   }
   
   _handleMicroTask() {
-    this.microtaskElapsed = true;
-    if (this.state === 'resolved') {
-      this._resolveThenables();
-    }
-    else if (this.state === 'rejected') {
-      this._rejectThenables();
-    }
+ 
+      this.microtaskElapsed = true;
+   
+    // if (this.state === 'resolved') {
+    //   this._resolveThenables();
+    // }
+    // else if (this.state === 'rejected') {
+    //   this._rejectThenables();
+    // }
   }
   
   _handleOnResolved(v: any): true {
@@ -72,20 +93,11 @@ export class Promise {
     }
     
     this.val = v;
-    
-    // if (this.preState === 'pending') {
-    //   this.state = 'resolved';
-    // }
-    // else {
-    //   this.preState = 'resolved';
-    //   return;
-    // }
-    
     this.state = 'resolved';
     
-    if (!this.microtaskElapsed) {
-      return;
-    }
+    // if (!this.microtaskElapsed) {
+    //   return;
+    // }
     
     if (this.thens.length < 1) {
       return;
@@ -116,20 +128,13 @@ export class Promise {
     }
     
     this.val = err;
-    
-    // if (this.preState === 'pending') {
-    //   this.state = 'rejected';
-    // }
-    // else {
-    //   this.preState = 'rejected';
-    //   return;
-    // }
-    
+    // this.preState = 'rejected';
+  
     this.state = 'rejected';
     
-    if (!this.microtaskElapsed) {
-      return;
-    }
+    // if (!this.microtaskElapsed) {
+    //   return;
+    // }
     
     if (this.thens.length < 1) {
       return;
