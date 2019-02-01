@@ -5,7 +5,6 @@ export const r2gSmokeTest = function () {
   return true;
 };
 
-
 declare var queueMicrotask: any;
 
 const CancelSymbol = Symbol('cancel');
@@ -17,16 +16,19 @@ type RejectExecutorCallback = (v: any) => false;
 type OnResolved = (v: any) => any;
 type OnRejected = (v: any) => any;
 
+
 type PromiseExecutor = (
   resolve: ResolveExecutorCallback,
   reject: RejectExecutorCallback
 ) => void;
 
-class Promise {
+type Thenable = { resolve: any, reject: any, onResolved: any, onRejected: any };
+
+export class Promise {
   
   state = 'pending';
   val = <any>null;
-  thens : Array<any> = [];
+  thens: Array<Thenable> = [];
   onRejected: (err: any) => any = null;
   microtaskElapsed = false;
   
@@ -34,103 +36,121 @@ class Promise {
     
     queueMicrotask(this.handleMicroTask.bind(this));
     
-    f(v => {
-      
-      if(this.state === 'resolved'){
-        throw 'Promise resolve callback fired twice.';
-      }
-      
-      if(this.state === 'rejected'){
-        throw 'Promise resolve callback fired after promise was already rejected.';
-      }
-      
-      this.state = 'resolved';
-      this.val = v;
-      
-      if (this.thens.length < 1) {
-        return;
-      }
-      
-      if(this.microtaskElapsed){
-        this._resolveThenables();
-      }
-      else{
-        queueMicrotask(() => {
-          this._resolveThenables();
-        });
-      }
-      
-      return true;
-      
-    }, err => {
-      
-      if(this.state === 'rejected'){
-        throw 'Promise reject callback fired twice.';
-      }
-      
-      if(this.state === 'resolved'){
-        throw 'Promise reject callback fired after promise was already resolved.';
-      }
-      
-      this.state = 'rejected';
-      this.val = err;
-      
-      if (this.thens.length < 1) {
-        return;
-      }
-      
-      if(this.microtaskElapsed){
-        this._rejectThenables();
-      }
-      else{
-        queueMicrotask(() => {
-          this._rejectThenables();
-        });
-      }
-      
-      return false;
-    });
+    try {
+      f(v => {
+         this._handleOnResolved(v);
+         return true;
+      }, err => {
+         this._handleOnRejected(err);
+         return false;
+      });
+    }
+    catch (err) {
+      this._handleOnRejected(err);
+    }
+    
   }
   
-  _resolveThenables(){
+  _handleOnResolved(v: any): true {
+    if (this.state === 'resolved') {
+      throw 'Promise resolve callback fired twice.';
+    }
+    
+    if (this.state === 'rejected') {
+      throw 'Promise resolve callback fired after promise was already rejected.';
+    }
+    
+    this.state = 'resolved';
+    this.val = v;
+    
+    if (this.thens.length < 1) {
+      return;
+    }
+    
+    if (this.microtaskElapsed) {
+      this._resolveThenables();
+    }
+    else {
+      queueMicrotask(() => {
+        this._resolveThenables();
+      });
+    }
+    
+    return true;
+  }
+  
+  _handleOnRejected(err: any): false {
+    if (this.state === 'rejected') {
+      throw 'Promise reject callback fired twice.';
+    }
+    
+    if (this.state === 'resolved') {
+      throw 'Promise reject callback fired after promise was already resolved.';
+    }
+    
+    this.state = 'rejected';
+    this.val = err;
+    
+    if (this.thens.length < 1) {
+      return;
+    }
+    
+    if (this.microtaskElapsed) {
+      this._rejectThenables();
+    }
+    else {
+      queueMicrotask(() => {
+        this._rejectThenables();
+      });
+    }
+    
+    return false;
+  }
+  
+  _resolveThenables() {
     for (let v of this.thens) {
       try {
+        
         const val = v.onResolved(this.val);
-        if(!Promise.isPromise(val)){
+        
+        if (!Promise.isPromise(val)) {
           this._handleValue(val, v.resolve, v.reject);
-        }
-        else{
-          val.then(
-            this._handleResolveOrReject(v.resolve,v.reject)
-          );
+          continue;
         }
         
-      } catch (err) {
+        val.then(
+          this._handleResolveOrReject(v.resolve, v.reject)
+        );
+        
+      }
+      catch (err) {
         v.reject(err);
       }
     }
   }
   
-  _rejectThenables(){
+  _rejectThenables() {
     for (let v of this.thens) {
       try {
         const val = v.onRejected(this.val);
         
         if (!Promise.isPromise(val)) {
-          this._handleValue(val,v.resolve,v.reject);
-        } else {
-          val.then(
-            this._handleResolveOrReject(v.resolve,v.reject)
-          );
+          this._handleValue(val, v.resolve, v.reject);
+          continue;
         }
         
-      } catch (err) {
+        val.then(
+          this._handleResolveOrReject(v.resolve, v.reject)
+        );
+        
+      }
+      catch (err) {
         v.reject(err);
       }
     }
   }
   
-  handleMicroTask(){
+  handleMicroTask() {
     this.microtaskElapsed = true;
   }
   
@@ -144,7 +164,7 @@ class Promise {
     return new Promise(resolve => resolve(val));
   }
   
-  static reject(val:any) {
+  static reject(val: any) {
     return {symbol: RejectSymbol, value: val};
   }
   
@@ -152,25 +172,25 @@ class Promise {
     return {symbol: CancelSymbol, value: val};
   }
   
-  _handleValue(v: any, resolve: ResolveExecutorCallback, reject: RejectExecutorCallback){
+  _handleValue(v: any, resolve: ResolveExecutorCallback, reject: RejectExecutorCallback) {
     
-    if(v && v.symbol === CancelSymbol){
+    if (v && v.symbol === CancelSymbol) {
       // no further processing?
       return;
     }
     
-    if(v && v.symbol === RejectSymbol){
+    if (v && v.symbol === RejectSymbol) {
       return reject(v.value);
     }
     
     return resolve(v);
   }
   
-  _handleResolveOrReject(resolve: ResolveExecutorCallback, reject: RejectExecutorCallback){
-    return (v:any) => this._handleValue(v, resolve,reject);
+  _handleResolveOrReject(resolve: ResolveExecutorCallback, reject: RejectExecutorCallback) {
+    return (v: any) => this._handleValue(v, resolve, reject);
   }
   
-  then(onResolved: OnResolved, onRejected: OnRejected) {
+  then(onResolved: OnResolved, onRejected?: OnRejected) {
     
     return new Promise((resolve, reject) => {
       
@@ -183,15 +203,15 @@ class Promise {
         try {
           const result = onResolved(this.val);
           if (!Promise.isPromise(result)) {
-            // return resolve(result);
-            return this._handleValue(result,resolve,reject);
+            return this._handleValue(result, resolve, reject);
           }
           
           return result.then(
-            this._handleResolveOrReject(resolve,reject)
+            this._handleResolveOrReject(resolve, reject)
           );
           
-        } catch (err) {
+        }
+        catch (err) {
           return reject(err);
         }
       }
@@ -202,15 +222,15 @@ class Promise {
           const result = onRejected(this.val);
           
           if (!Promise.isPromise(result)) {
-            // return resolve(result);
-            return this._handleValue(result,resolve,reject);
+            return this._handleValue(result, resolve, reject);
           }
           
           return result.then(
-            this._handleResolveOrReject(resolve,reject)
+            this._handleResolveOrReject(resolve, reject)
           );
           
-        } catch (err) {
+        }
+        catch (err) {
           return reject(err);
         }
       }
@@ -226,4 +246,3 @@ class Promise {
   
 }
 
-exports.Promise = Promise;
