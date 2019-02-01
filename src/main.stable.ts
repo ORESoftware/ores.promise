@@ -21,14 +21,13 @@ type PromiseExecutor = (
   reject: RejectExecutorCallback
 ) => void;
 
-type Thenable = { resolve: any, reject: any, onResolved: any, onRejected: any };
+type QueueItem = { resolve: any, reject: any, onResolved: any, onRejected: any };
 
 export class Promise {
   
   state = 'pending';
-  preState = 'pending';
   val = <any>null;
-  thens: Array<Thenable> = [];
+  thens: Array<QueueItem> = [];
   onRejected: (err: any) => any = null;
   microtaskElapsed = false;
   
