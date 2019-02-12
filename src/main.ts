@@ -10,7 +10,10 @@ declare var queueMicrotask: any;
 const CancelSymbol = Symbol('cancel');
 const RejectSymbol = Symbol('reject');
 
-type ResolveExecutorCallback = (v: any) => true;
+// type ResolveExecutorCallback = (v: any, noDelay?: boolean) => true;
+// type RejectExecutorCallback = (v: any, noDelay?: boolean) => false;
+
+type ResolveExecutorCallback = (v?: any) => true;
 type RejectExecutorCallback = (v: any) => false;
 
 type OnResolved = (v: any) => any;
@@ -18,10 +21,11 @@ type OnRejected = (v: any) => any;
 
 type PromiseExecutor = (
   resolve: ResolveExecutorCallback,
-  reject: RejectExecutorCallback
+  reject: RejectExecutorCallback,
+  p: Promise
 ) => void;
 
-type Thenable = { resolve: any, reject: any, onResolved: any, onRejected: any };
+type Thenable = {p: Promise, resolve: any, reject: any, onResolved: any, onRejected: any };
 
 export class Promise {
   
@@ -34,40 +38,61 @@ export class Promise {
   
   constructor(f: PromiseExecutor) {
     
-    queueMicrotask(this._handleMicroTask.bind(this));
-    
+  
     try {
       f(v => {
-        
-        // if(this.microtaskElapsed){
-        //   this._handleOnResolved(v);
-        // }
-        // else{
-        queueMicrotask(() => {
+          
+          // console.log(1,{v,noDelay});
+          
+          // if (noDelay && this.microtaskElapsed) {
+          //   console.log('no delay');
+          //   this._handleOnResolved(v);
+          // }
+          // else {
+          //   queueMicrotask(() => {
+          //     this._handleOnResolved(v);
+          //   });
+          // }
+    
           this._handleOnResolved(v);
-        });
-        // }
+          return true;
+        },
         
-        return true;
-      }, err => {
-        
-        // if(this.microtaskElapsed){
-        //   this._handleOnRejected(err);
-        // }
-        // else{
-        queueMicrotask(() => {
+        err => {
+          
+          // console.log(2,{err,noDelay});
+  
           this._handleOnRejected(err);
-        });
-        // }
-        
-        return false;
-      });
+          
+          // if (noDelay && this.microtaskElapsed) {
+          //   console.log('no delay');
+          //   this._handleOnRejected(err);
+          // }
+          // else {
+          //   queueMicrotask(() => {
+          //     this._handleOnRejected(err);
+          //   });
+          // }
+          
+          return false;
+        },
+        this
+      );
     }
     catch (err) {
+      // if () {
+      //   this._handleOnRejected(err);
+      // }
+      // else {
       queueMicrotask(() => {
         this._handleOnRejected(err);
       });
+      // }
+      
     }
+  
+    queueMicrotask(this._handleMicroTask.bind(this));
+    
   }
   
   _handleMicroTask() {
@@ -102,8 +127,27 @@ export class Promise {
     if (this.thens.length < 1) {
       return;
     }
+  
+    const doNotNeedDelay : Array<Thenable> = [];
+  
+    const needDelay = this.thens.filter(v => {
+      // return true;
+      if(v.p.microtaskElapsed === false){
+        return true;
+      }
+      doNotNeedDelay.push(v);
+    });
+  
+    if(doNotNeedDelay.length > 0){
+      // throw 'delay bad';
+    }
     
-    this._resolveThenables();
+    this._resolveThenables(doNotNeedDelay);
+  
+    queueMicrotask(() => {
+      this._resolveThenables(needDelay);
+    });
+    
     
     // if (this.microtaskElapsed) {
     //   this._resolveThenables();
@@ -140,7 +184,24 @@ export class Promise {
       return;
     }
     
-    this._rejectThenables();
+    const doNotNeedDelay : Array<Thenable> = [];
+    
+    const needDelay = this.thens.filter(v => {
+      // return true;
+       if(v.p.microtaskElapsed === false){
+         return true;
+       }
+       doNotNeedDelay.push(v);
+    });
+  
+    if(doNotNeedDelay.length > 0){
+      // throw 'delay bad';
+    }
+    this._rejectThenables(doNotNeedDelay);
+    
+    queueMicrotask(() => {
+      this._rejectThenables(needDelay);
+    });
     
     // if (this.microtaskElapsed) {
     //   this._rejectThenables();
@@ -154,12 +215,12 @@ export class Promise {
     return false;
   }
   
-  _resolveThenables() {
-    for (let v of this.thens) {
+  _resolveThenables(thens: Array<Thenable>) {
+    for (let v of thens) {
       
-      if(!v.onResolved){
-         v.resolve(this.val);
-         continue;
+      if (!v.onResolved) {
+        v.resolve(this.val);
+        continue;
       }
       
       try {
@@ -182,12 +243,12 @@ export class Promise {
     }
   }
   
-  _rejectThenables() {
-    for (let v of this.thens) {
+  _rejectThenables(thens: Array<Thenable>) {
+    for (let v of thens) {
       
-      if(!v.onRejected){
-         v.reject(this.val);
-         continue;
+      if (!v.onRejected) {
+        v.reject(this.val);
+        continue;
       }
       
       try {
@@ -217,7 +278,14 @@ export class Promise {
   }
   
   static resolve(val: any) {
-    return new Promise(resolve => resolve(val));
+    
+    if(!Promise.isPromise(val)){
+      return new Promise(resolve => resolve(val));
+    }
+  
+    return new Promise((resolve,reject,p) => {
+      val.then(p._handleResolveOrReject(resolve,reject))
+    });
   }
   
   static reject(val: any) {
@@ -248,15 +316,19 @@ export class Promise {
   
   then(onResolved: OnResolved, onRejected?: OnRejected) {
     
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve, reject, p) => {
+      
+      // if(!this.microtaskElapsed){
+      //   return this.thens.push({onResolved, onRejected, resolve, reject});
+      // }
       
       if (this.state === 'pending') {
-        return this.thens.push({onResolved, onRejected, resolve, reject});
+        return this.thens.push({p, onResolved, onRejected, resolve, reject});
       }
       
       if (this.state === 'resolved') {
         
-        if(!onResolved){
+        if (!onResolved) {
           return resolve(this.val);
         }
         
@@ -276,7 +348,7 @@ export class Promise {
         }
       }
       
-      if(this.state !== 'rejected'){
+      if (this.state !== 'rejected') {
         throw 'bad state - should be rejected.';
       }
       

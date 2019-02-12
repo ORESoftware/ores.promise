@@ -31,6 +31,7 @@
   "homepage": "https://github.com/ORESoftware/typescript-library-skeleton#readme",
   "dependencies": {},
   "devDependencies": {
-    "@types/node": "^10.12.10"
+    "@types/node": "^10.12.10",
+    "typescript": "^3.3.1"
   }
 }
